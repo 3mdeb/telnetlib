@@ -36,6 +36,7 @@ To do:
 import sys
 import socket
 import selectors
+import fuzzysearch
 from time import monotonic as _time
 
 __all__ = ["Telnet"]
@@ -303,6 +304,59 @@ class Telnet:
         n = len(match)
         self.process_rawq()
         i = self.cookedq.find(match)
+        if i >= 0:
+            i = i+n
+            buf = self.cookedq[:i]
+            self.cookedq = self.cookedq[i:]
+            return buf
+        if timeout is not None:
+            deadline = _time() + timeout
+        with _TelnetSelector() as selector:
+            selector.register(self, selectors.EVENT_READ)
+            while not self.eof:
+                if selector.select(timeout):
+                    i = max(0, len(self.cookedq)-n)
+                    self.fill_rawq()
+                    self.process_rawq()
+                    i = self.cookedq.find(match, i)
+                    if i >= 0:
+                        i = i+n
+                        buf = self.cookedq[:i]
+                        self.cookedq = self.cookedq[i:]
+                        return buf
+                if timeout is not None:
+                    timeout = deadline - _time()
+                    if timeout < 0:
+                        break
+        return self.read_very_lazy()
+
+    def read_until_fuzzy(self, match, timeout=None, percent_match=None, max_errors=None):
+        """Read until a given string is encountered or until timeout.
+
+        When no match is found, return whatever is available instead,
+        possibly the empty string.  Raise EOFError if the connection
+        is closed and no cooked data is available.
+
+        """
+        n = len(match)
+        self.process_rawq()
+        if max_errors:
+            max_errors = int(max_errors)
+            max_l_dist = max_errors
+        elif percent_match:
+            percent_match = float(percent_match)
+            percent_match = min(100, max(0, percent_match))
+            percent_errors = (100 - percent_match)
+            max_l_dist = int(n * percent_errors / 100)
+        else:
+            max_l_dist = 0
+        matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist)
+        if len(matches) > 0:
+            i = matches[0].start
+            n = len(matches[0].matched)
+        else:
+            i = -1
+
         if i >= 0:
             i = i+n
             buf = self.cookedq[:i]
