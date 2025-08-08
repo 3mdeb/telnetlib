@@ -330,27 +330,27 @@ class Telnet:
                         break
         return self.read_very_lazy()
 
-    def read_until_fuzzy(self, match, timeout=None, percent_match=None, max_errors=None):
-        """Read until a given string is encountered or until timeout.
-
-        When no match is found, return whatever is available instead,
-        possibly the empty string.  Raise EOFError if the connection
-        is closed and no cooked data is available.
-
-        """
+    def read_until_fuzzy(self, match, timeout=None, percent_match=None, max_errors=None, max_insertions=None, max_deletions=None):
         n = len(match)
         self.process_rawq()
-        if max_errors:
-            max_errors = int(max_errors)
-            max_l_dist = max_errors
-        elif percent_match:
+        if max_insertions is not None:
+            if max_insertions:
+                max_insertions = int(max_insertions)
+        if max_deletions is not None:
+            if max_deletions:
+                max_deletions = int(max_deletions)
+        if max_errors is not None:
+            max_l_dist=max_errors
+        elif percent_match is not None:
             percent_match = float(percent_match)
             percent_match = min(100, max(0, percent_match))
             percent_errors = (100 - percent_match)
             max_l_dist = int(n * percent_errors / 100)
         else:
+            max_insertions = max_deletions = None
             max_l_dist = 0
-        matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist)
+        
+        matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist, max_deletions=max_deletions, max_insertions=max_insertions)
         if len(matches) > 0:
             i = matches[0].start
             n = len(matches[0].matched)
@@ -368,10 +368,13 @@ class Telnet:
             selector.register(self, selectors.EVENT_READ)
             while not self.eof:
                 if selector.select(timeout):
-                    i = max(0, len(self.cookedq)-n)
                     self.fill_rawq()
                     self.process_rawq()
-                    i = self.cookedq.find(match, i)
+                    matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=max_errors)
+                    if len(matches) > 0:
+                        i = matches[0].start
+                        n = len(matches[0].matched)
+
                     if i >= 0:
                         i = i+n
                         buf = self.cookedq[:i]
