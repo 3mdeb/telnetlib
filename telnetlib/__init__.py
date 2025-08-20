@@ -334,23 +334,41 @@ class Telnet:
         n = len(match)
         self.process_rawq()
         if max_insertions is not None:
-            if max_insertions:
-                max_insertions = int(max_insertions)
+            try:
+                max_insertions=int(max_insertions)
+            except:
+                print(f"max_insertions parameter invalid: {max_insertions}:{type(max_insertions)}")
+                max_insertions=None
+
         if max_deletions is not None:
-            if max_deletions:
-                max_deletions = int(max_deletions)
+            try:
+                max_deletions=int(max_deletions)
+            except:
+                print(f"max_deletions parameter invalid: {max_deletions}:{type(max_deletions)}")
+                max_deletions=None
+
         if max_errors is not None:
-            max_l_dist=max_errors
+            try:
+                max_errors = int(max_errors)
+                max_l_dist = max_errors
+            except:
+                print(f"max_errors parameter invalid: {max_errors}:{type(max_errors)}")
+                max_errors=None
         elif percent_match is not None:
-            percent_match = float(percent_match)
-            percent_match = min(100, max(0, percent_match))
-            percent_errors = (100 - percent_match)
-            max_l_dist = int(n * percent_errors / 100)
-        else:
-            max_insertions = max_deletions = None
-            max_l_dist = 0
-        
-        matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist, max_deletions=max_deletions, max_insertions=max_insertions)
+            try:
+                percent_match = float(percent_match)
+                percent_match = min(100, max(0, percent_match)) # limit to 0-100
+                percent_errors = 100 - percent_match
+                max_l_dist = int(round(len(match) * percent_errors / 100.0))
+            except:
+                print(f"percent_match parameter invalid: {percent_match}:{type(percent_match)}")
+                percent_match=None
+        try:
+            matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=0)
+        except:
+            print(f"max_l_dist: {max_l_dist}:{type(max_l_dist)}")
+            print(f"max_deletions: {max_deletions}:{type(max_deletions)}")
+            print(f"max_insertions: {max_insertions}:{type(max_insertions)}")
         if len(matches) > 0:
             i = matches[0].start
             n = len(matches[0].matched)
