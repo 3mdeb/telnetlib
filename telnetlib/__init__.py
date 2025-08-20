@@ -365,10 +365,11 @@ class Telnet:
                 percent_match=None
         try:
             matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=0)
-        except:
+        except Exception as e:
             print(f"max_l_dist: {max_l_dist}:{type(max_l_dist)}")
             print(f"max_deletions: {max_deletions}:{type(max_deletions)}")
             print(f"max_insertions: {max_insertions}:{type(max_insertions)}")
+            raise e
         if len(matches) > 0:
             i = matches[0].start
             n = len(matches[0].matched)
