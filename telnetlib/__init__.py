@@ -330,7 +330,7 @@ class Telnet:
                         break
         return self.read_very_lazy()
 
-    def read_until_fuzzy(self, match, timeout=None, percent_match=None, max_errors=None, max_insertions=None, max_deletions=None):
+    def read_until_fuzzy(self, match, timeout=None, percent_match=None, max_insertions=None, max_deletions=None, max_substitutions=None):
         n = len(match)
         self.process_rawq()
         if max_insertions is not None:
@@ -346,29 +346,18 @@ class Telnet:
             except:
                 print(f"max_deletions parameter invalid: {max_deletions}:{type(max_deletions)}")
                 max_deletions=None
-
-        if max_errors is not None:
+        if max_substitutions is not None:
             try:
-                max_errors = int(max_errors)
-                max_l_dist = max_errors
+                max_substitutions=int(max_substitutions)
             except:
-                print(f"max_errors parameter invalid: {max_errors}:{type(max_errors)}")
-                max_errors=None
-        elif percent_match is not None:
-            try:
-                percent_match = float(percent_match)
-                percent_match = min(100, max(0, percent_match)) # limit to 0-100
-                percent_errors = 100 - percent_match
-                max_l_dist = int(round(len(match) * percent_errors / 100.0))
-            except:
-                print(f"percent_match parameter invalid: {percent_match}:{type(percent_match)}")
-                percent_match=None
+                print(f"max_substitutions parameter invalid: {max_substitutions}:{type(max_substitutions)}")
+                max_substitutions=None
         try:
-            matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=0)
+            matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=None, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=max_substitutions)
         except Exception as e:
-            print(f"max_l_dist: {max_l_dist}:{type(max_l_dist)}")
             print(f"max_deletions: {max_deletions}:{type(max_deletions)}")
             print(f"max_insertions: {max_insertions}:{type(max_insertions)}")
+            print(f"max_substitutions: {max_substitutions}:{type(max_substitutions)}")
             raise e
         if len(matches) > 0:
             i = matches[0].start
@@ -389,7 +378,7 @@ class Telnet:
                 if selector.select(timeout):
                     self.fill_rawq()
                     self.process_rawq()
-                    matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=max_l_dist, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=max_errors)
+                    matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=None, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=max_substitutions)
                     if len(matches) > 0:
                         i = matches[0].start
                         n = len(matches[0].matched)
