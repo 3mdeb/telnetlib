@@ -36,6 +36,7 @@ To do:
 import sys
 import socket
 import selectors
+import fuzzysearch
 from time import monotonic as _time
 
 __all__ = ["Telnet"]
@@ -318,6 +319,70 @@ class Telnet:
                     self.fill_rawq()
                     self.process_rawq()
                     i = self.cookedq.find(match, i)
+                    if i >= 0:
+                        i = i+n
+                        buf = self.cookedq[:i]
+                        self.cookedq = self.cookedq[i:]
+                        return buf
+                if timeout is not None:
+                    timeout = deadline - _time()
+                    if timeout < 0:
+                        break
+        return self.read_very_lazy()
+
+    def read_until_fuzzy(self, match, timeout=None, percent_match=None, max_insertions=None, max_deletions=None, max_substitutions=None):
+        n = len(match)
+        self.process_rawq()
+        if max_insertions is not None:
+            try:
+                max_insertions=int(max_insertions)
+            except:
+                print(f"max_insertions parameter invalid: {max_insertions}:{type(max_insertions)}")
+                max_insertions=None
+
+        if max_deletions is not None:
+            try:
+                max_deletions=int(max_deletions)
+            except:
+                print(f"max_deletions parameter invalid: {max_deletions}:{type(max_deletions)}")
+                max_deletions=None
+        if max_substitutions is not None:
+            try:
+                max_substitutions=int(max_substitutions)
+            except:
+                print(f"max_substitutions parameter invalid: {max_substitutions}:{type(max_substitutions)}")
+                max_substitutions=None
+        try:
+            matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=None, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=max_substitutions)
+        except Exception as e:
+            print(f"max_deletions: {max_deletions}:{type(max_deletions)}")
+            print(f"max_insertions: {max_insertions}:{type(max_insertions)}")
+            print(f"max_substitutions: {max_substitutions}:{type(max_substitutions)}")
+            raise e
+        if len(matches) > 0:
+            i = matches[0].start
+            n = len(matches[0].matched)
+        else:
+            i = -1
+
+        if i >= 0:
+            i = i+n
+            buf = self.cookedq[:i]
+            self.cookedq = self.cookedq[i:]
+            return buf
+        if timeout is not None:
+            deadline = _time() + timeout
+        with _TelnetSelector() as selector:
+            selector.register(self, selectors.EVENT_READ)
+            while not self.eof:
+                if selector.select(timeout):
+                    self.fill_rawq()
+                    self.process_rawq()
+                    matches = fuzzysearch.find_near_matches(match, self.cookedq, max_l_dist=None, max_deletions=max_deletions, max_insertions=max_insertions, max_substitutions=max_substitutions)
+                    if len(matches) > 0:
+                        i = matches[0].start
+                        n = len(matches[0].matched)
+
                     if i >= 0:
                         i = i+n
                         buf = self.cookedq[:i]
